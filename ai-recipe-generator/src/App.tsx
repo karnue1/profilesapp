@@ -1,85 +1,83 @@
-import { FormEvent, useState } from "react";
-import { Loader, Placeholder } from "@aws-amplify/ui-react";
-import "./App.css";
-import { Amplify } from "aws-amplify";
-import type { Schema } from "../amplify/data/resource";
-import { generateClient } from "aws-amplify/data";
-import outputs from "../amplify_outputs.json";
-import "@aws-amplify/ui-react/styles.css";
+import { useState } from 'react';
+import { generateClient } from 'aws-amplify/data';
+import type { Schema } from '../amplify/data/resource';
 
-Amplify.configure(outputs);
+const client = generateClient<Schema>();
 
-const amplifyClient = generateClient<Schema>({
-  authMode: "userPool",
-});
-
-function App() {
-  const [result, setResult] = useState<string>("");
+export default function App() {
+  const [ingredientsInput, setIngredientsInput] = useState('');
+  const [recipe, setRecipe] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const generateRecipe = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
+    setRecipe('');
+
     try {
-      const formData = new FormData(event.currentTarget);
-      const { data, errors } = await amplifyClient.queries.askBedrock({
-        ingredients: [formData.get("ingredients")?.toString() || ""],
+      // Split comma-separated string into an array of strings to match your schema
+      const ingredientsArray = ingredientsInput
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+
+      const response = await client.queries.askBedrock({
+        ingredients: ingredientsArray,
       });
-      if (!errors) {
-        setResult(data?.body || "No data returned");
-      } else {
-        console.log(errors);
+
+      console.log('Bedrock Response:', response);
+
+      // Extract the text body returned by your custom resolver
+      if (response && response.data) {
+        const rawBody = response.data.body;
+        if (rawBody) {
+          const parsed = JSON.parse(rawBody);
+          // Anthropic Claude response format
+          if (parsed.content && parsed.content[0] && parsed.content[0].text) {
+            setRecipe(parsed.content[0].text);
+          } else {
+            setRecipe(JSON.stringify(parsed, null, 2));
+          }
+        } else {
+          setRecipe(JSON.stringify(response.data, null, 2));
+        }
       }
-    } catch (e) {
-      alert(`An error occurred: ${e}`);
+    } catch (error) {
+      console.error('Error generating recipe:', error);
+      setRecipe('Error generating recipe. Check browser console (F12) for details.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="app-container">
-      <div className="header-container">
-        <h1 className="main-header">
-          Meet Your Personal <br />
-          <span className="highlight">Recipe AI</span>
-        </h1>
-        <p className="description" style={{ fontWeight: "bold", color: "#2563eb", marginTop: "10px" }}>
-          Created by Titus Gbanquoi
-        </p>
-        <p className="description">
-          Simply type a few ingredients using the format ingredient1, ingredient2, etc., and Recipe AI will generate an all-new recipe on demand...
-        </p>
-      </div>
-      <form onSubmit={onSubmit} className="form-container">
-        <div className="search-container">
-          <input
-            type="text"
-            className="wide-input"
-            id="ingredients"
-            name="ingredients"
-            placeholder="Ingredient1, Ingredient2, Ingredient3,...etc"
-          />
-          <button type="submit" className="search-button">
-            Generate
-          </button>
-        </div>
+    <div style={{ padding: '30px', maxWidth: '700px', margin: 'auto', fontFamily: 'sans-serif' }}>
+      <h1>Meet Your Personal Recipe AI</h1>
+      <p>Simply type a few ingredients using the format ingredient1, ingredient2, etc., and Recipe AI will generate an all-new recipe on demand...</p>
+      
+      <form onSubmit={generateRecipe}>
+        <input 
+          type="text" 
+          value={ingredientsInput} 
+          onChange={(e) => setIngredientsInput(e.target.value)} 
+          placeholder="chicken, garlic, rice"
+          style={{ width: '100%', padding: '12px', fontSize: '16px', marginBottom: '15px', borderRadius: '6px', border: '1px solid #ccc' }}
+        />
+        <button 
+          type="submit" 
+          disabled={loading}
+          style={{ width: '100%', padding: '12px', fontSize: '16px', backgroundColor: '#0066ff', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+        >
+          {loading ? 'Generating Recipe...' : 'Generate'}
+        </button>
       </form>
-      <div className="result-container">
-        {loading ? (
-          <div className="loader-container">
-            <p>Loading...</p>
-            <Loader size="large" />
-            <Placeholder size="large" />
-            <Placeholder size="large" />
-            <Placeholder size="large" />
-          </div>
-        ) : (
-          result && <p className="result">{result}</p>
-        )}
-      </div>
+
+      {recipe && (
+        <div style={{ marginTop: '25px', background: '#f9f9f9', padding: '20px', borderRadius: '8px', border: '1px solid #e0e0e0' }}>
+          <h2>Generated Recipe</h2>
+          <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{recipe}</div>
+        </div>
+      )}
     </div>
   );
 }
-
-export default App;
