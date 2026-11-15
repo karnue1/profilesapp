@@ -2,7 +2,7 @@ export function request(ctx) {
   const { ingredients = [] } = ctx.args;
   const prompt = `Suggest a recipe idea using these ingredients: ${ingredients.join(", ")}.`;
   return {
-    resourcePath: `/model/anthropic.claude-3-5-sonnet-20241022-v2:0/invoke`,
+    resourcePath: "/model/anthropic.claude-3-5-sonnet-20241022-v2:0/invoke",
     method: "POST",
     params: {
       headers: {
@@ -29,11 +29,7 @@ export function request(ctx) {
 
 export function response(ctx) {
   const parsedBody = JSON.parse(ctx.result.body);
-  const responseText =
-    parsedBody.content && parsedBody.content[0]
-      ? parsedBody.content[0].text
-      : JSON.stringify(parsedBody);
   return {
-    body: responseText,
+    body: parsedBody.content[0].text,
   };
 }
